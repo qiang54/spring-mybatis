@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 动态代理：只写接口即可，不必写实现类
+	1.namespace必须为代理接口的全路径！！！
+	2.sql的id必须为接口中方法的名称
+	3.参数类型必须为接口中方法的参数类型
+	4.返回值类型必须为接口中方法的返回值类型
+ -->
+<mapper namespace="com.test.mapper.UserMapper">
+
+	<!-- 封装where条件 -->
+	<sql id="user_where">
+		<where>
+			<if test="username != null and username != ''">
+					and username like '%${username}%'
+				</if>
+				<if test="email != null and email != ''">
+					and email like '%${email}%' 
+			</if>
+		</where>
+		
+	</sql>
+	
+	
+<!-- id:sql语句的唯一标识符
+		parameterType:指定传入参数的类型
+		resultType:返回结果集的类型
+	 -->
+	<select id="findById" parameterType="java.lang.Integer" resultType="user">
+		select * from user where userid = #{userid}
+	</select>
+
+	<!-- 若返回类型为集合，则返回值类型为泛型的类型 
+		${}拼接字符串，若传入参数为基本类型，则内的变量必须为value:${value}
+	-->
+	<select id="findByName" parameterType="java.lang.String" resultType="user">
+		select * from user where username like '%${value}%'
+	</select>
+	
+	<!--#{}：若传入为基本类型，则必须为pojo对应的属性名称；
+		parameterType:
+		返回自增主键，可使用:select LAST_INSERT_ID()  
+	 -->
+	<insert id="insertUser" parameterType="com.test.pojo.User">
+		<!--keyProperty:返回主键 放入传入参数的id 中保存
+			order：相对于insert，在insert之前，为BEFORE ,之后，为AFTER
+		  -->
+		<selectKey keyProperty="userid" order="AFTER" resultType="java.lang.Integer">
+			select LAST_INSERT_ID()
+		</selectKey>
+		insert into user ( username,email,password) values(#{username},#{email},#{password})
+	</insert>
+	
+	<delete id="delUserById" parameterType="java.lang.Integer" >
+		delete from user where userid = #{userid}
+	</delete>
+
+	<select id="findByVo" parameterType="com.test.pojo.QueryVo" resultType="user" >
+		select * from user where username like '%${user.username}%' and email like '%${user.email}%'
+	</select>
+
+	<select id="findAllCount"  resultType="java.lang.Integer">
+		select count(*) from user
+	</select>
+	
+	<select id="findByDynSql" parameterType="user" resultType="user">
+		select * from user 
+		
+		<!-- 调用条件语句 -->
+		<include refid="user_where"></include>
+		
+		<!-- <if test="username != null and username != ''">
+			and username like '%${username}%'
+		</if>
+		<if test="email != null and email != ''">
+			and email like '%${email}%' 
+		</if> -->
+	</select>
+	
+	<!-- foreach 标签
+		collection：传入的集合名称
+		item：遍历集合时，变量名，自定义
+		open：userid in (
+		close：)
+		separator：分隔符‘,’
+	 -->
+	 <select id="findByIds" parameterType="com.test.pojo.QueryVo" resultType="user">
+	 	select * from user 
+	 	<where>
+	 		<if test="ids != null">
+	 			<foreach collection="ids" item="id" open="userid in (" close="userid in (" separator=",">
+	 				#{id}
+	 			</foreach>
+	 		</if>
+	 	</where>
+	 </select>
+	
+	<!-- 关联查询:1.一对一自动映射 -->
+	<select id="findByOrderAndUser" resultType="com.test.pojo.CustOrder">
+		select o.*, u.userid uid, username, email, password
+		from orders o, user u
+		where o.user_id = u.userid
+	</select>
+	
+	<!-- 2.一对一手动映射 mybatis标准方法
+		id：resultMap的唯一标识符
+		type：查询出的数据，放到这个类型中
+		注意：
+			手动映射需指定数据库字段名与java中pojo类中的属性名的对应关系
+	 -->
+	 <resultMap type="com.test.pojo.Orders" id="Order_User_resultMap">
+	 	<!-- id:主键 -->
+	 	<id column="oid" property="oid"/>
+	 	
+	 	<!-- result：其余属性 -->
+	 	<result column="user_id" property="user_id"/>
+	 	<result column="number" property="number"/>
+	 	<result column="note" property="note"/>
+	 	
+	 	<!-- 与单个对象的对应关系
+	 		property：将指定数据放入Orders中的user属性中
+	 		javaType：user属性的类型
+	 	 -->
+	 	<association property="user" javaType="com.test.pojo.User">
+	 		<!-- id:主键 -->
+	 		<id column="userid" property="userid"/>
+	 		
+	 		<!-- result：其余属性 -->
+	 		<result column="username" property="username"/>
+	 		<result column="email" property="email"/>
+	 		<result column="password" property="password"/>
+	 		
+	 	</association>
+	 </resultMap>
+	 
+	<select id="findByOrderAndUser2" resultMap="Order_User_resultMap">
+		select o.*, u.userid uid, username, email, password
+		from orders o, user u
+		where o.user_id = u.userid
+	</select>
+	
+	
+	<resultMap type="com.test.pojo.User" id="User_Order_resultMap">
+		
+		<id column="userid" property="userid"/>
+		<result column="username" property="username"/>
+		<result column="email" property="email"/>
+		<result column="password" property="password"/>
+
+		<collection property="orders" ofType="com.test.pojo.Orders">
+			<id column="oid" property="oid"/>
+			
+			<result column="user_id" property="user_id"/>
+			<result column="number" property="number"/>
+			<result column="note" property="note"/>
+			
+		</collection>
+
+	</resultMap>
+	<select id="findByUserAndOrders" resultMap="User_Order_resultMap">
+		select * 
+		from user u, orders o
+		where u.userid = o.user_id
+	
+	</select>
+	
+</mapper>
